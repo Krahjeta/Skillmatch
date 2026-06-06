@@ -9,6 +9,10 @@ import Jobs from './pages/Jobs';
 import JobDetail from './pages/JobDetail';
 import MyApplications from './pages/MyApplications';
 import NewJob from './pages/NewJob';
+import CareerAdvisor from './pages/CareerAdvisor';
+import Recommendations from './pages/Recommendations';
+import SavedJobs from './pages/SavedJobs';
+import EditJob from './pages/EditJob';
 
 export default function App() {
   return (
@@ -30,9 +34,23 @@ export default function App() {
             element={<ProtectedRoute><MyApplications /></ProtectedRoute>}
           />
           <Route
+            path="/advisor"
+            element={<ProtectedRoute><CareerAdvisor /></ProtectedRoute>}
+          />
+          <Route
+            path="/recommendations"
+            element={<ProtectedRoute><Recommendations /></ProtectedRoute>}
+          />
+          <Route
+  path="/admin/jobs/:id/edit"
+  element={<ProtectedRoute adminOnly><EditJob /></ProtectedRoute>}
+/>
+          <Route
             path="/admin/jobs/new"
             element={<ProtectedRoute adminOnly><NewJob /></ProtectedRoute>}
           />
+          <Route path="/saved-jobs" element={<SavedJobs />} />
+          
         </Routes>
       </main>
     </>

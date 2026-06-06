@@ -18,6 +18,9 @@ export default function Navbar() {
           <Link to="/jobs">Jobs</Link>
           {user && <Link to="/profile">Profile</Link>}
           {user && <Link to="/applications">My Applications</Link>}
+          <Link to="/saved-jobs">Saved Jobs</Link>
+          {user && <Link to="/recommendations">ML Recommendations</Link>}
+          {user && <Link to="/advisor">AI Advisor</Link>}
           {user?.role === 'admin' && <Link to="/admin/jobs/new">+ Post Job</Link>}
           {!user && <Link to="/login">Login</Link>}
           {!user && <Link to="/register" className="btn-primary">Sign up</Link>}
