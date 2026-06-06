@@ -1,9 +1,42 @@
+// ============================================================================
+// RECOMMENDATIONS.JSX - ML Recommendations Page
+// Project: SkillPath
+//
+// Work Distribution:
+//
+// Krahjeta:
+// - Main page structure
+// - Loading ML data from backend
+// - Collaborative recommendations UI
+// - Python ML results tab integration
+//
+// Anita:
+// - Skill Gap UI
+// - Missing skills visualization
+// - Explanation text for skill recommendations
+//
+// Sara:
+// - Job Clusters UI
+// - Cluster cards
+// - Python ML charts/table display
+//
+// Shared Work:
+// - UI testing
+// - API connection testing
+// - Styling and debugging
+// ============================================================================
+
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
+// ============================================================================
+// KRAHJETA
+// Main Recommendations component.
+// This page loads ML results from the backend and displays them in tabs.
+// ============================================================================
 export default function Recommendations() {
   const [gaps, setGaps] = useState([]);
   const [clusters, setClusters] = useState([]);
@@ -18,6 +51,13 @@ export default function Recommendations() {
   const [pyLoading, setPyLoading] = useState(false);
   const [pyActiveImg, setPyActiveImg] = useState(null);
 
+  // ==========================================================================
+  // KRAHJETA
+  // Loads live ML data from backend:
+  // - Skill Gap Analysis
+  // - Job Clusters
+  // - Collaborative Filtering Recommendations
+  // ==========================================================================
   useEffect(() => {
     async function load() {
       setLoading(true);
@@ -48,6 +88,11 @@ export default function Recommendations() {
   return (
     <div style={styles.page}>
       <div style={styles.container}>
+        {/* ====================================================================
+            KRAHJETA
+            Page header.
+            Shows title and short explanation of recommendation system.
+        ==================================================================== */}
         <div style={styles.header}>
           <h1 style={styles.title}>Job Recommendations</h1>
           <p style={styles.subtitle}>
@@ -55,6 +100,11 @@ export default function Recommendations() {
           </p>
         </div>
 
+        {/* ====================================================================
+            KRAHJETA
+            Tab navigation.
+            Allows user to switch between ML features.
+        ==================================================================== */}
         <div style={styles.tabs}>
           {[
             { id: 'skill-gap', label: 'Missing Skills' },
@@ -76,6 +126,11 @@ export default function Recommendations() {
           <div style={styles.loading}>Loading recommendations...</div>
         ) : (
           <>
+            {/* ================================================================
+                ANITA
+                Skill Gap Analysis UI.
+                Shows missing skills that appear often in suitable jobs.
+            ================================================================ */}
             {tab === 'skill-gap' && (
               <div>
                 <div style={styles.infoTag}>Skill gap analysis</div>
@@ -117,6 +172,11 @@ export default function Recommendations() {
               </div>
             )}
 
+            {/* ================================================================
+                SARA
+                Job Clustering UI.
+                Shows groups of jobs created by K-Means clustering.
+            ================================================================ */}
             {tab === 'clusters' && (
               <div>
                 <div style={styles.infoTag}>Job grouping</div>
@@ -155,6 +215,11 @@ export default function Recommendations() {
               </div>
             )}
 
+            {/* ================================================================
+                KRAHJETA
+                Collaborative Filtering UI.
+                Shows jobs recommended from similar user behavior.
+            ================================================================ */}
             {tab === 'collaborative' && (
               <div>
                 <div style={styles.infoTag}>Based on similar users</div>
@@ -210,6 +275,11 @@ export default function Recommendations() {
               </div>
             )}
 
+            {/* ================================================================
+                SARA
+                Python ML Results tab.
+                Displays offline Python ML model results, tables and charts.
+            ================================================================ */}
             {tab === 'python-ml' && (
               <PythonMLTab
                 pyReady={pyReady}
@@ -231,6 +301,15 @@ export default function Recommendations() {
   );
 }
 
+// ============================================================================
+// SARA
+// PythonMLTab component.
+// Loads and displays Python-generated ML results:
+// - classifier comparison table
+// - confusion matrix
+// - clustering visualization
+// - silhouette curve
+// ============================================================================
 function PythonMLTab({
   pyReady,
   setPyReady,
@@ -243,6 +322,11 @@ function PythonMLTab({
   pyActiveImg,
   setPyActiveImg,
 }) {
+  // ==========================================================================
+  // SARA
+  // Loads Python ML outputs from backend.
+  // These files are generated by ml-python/main.py.
+  // ==========================================================================
   useEffect(() => {
     async function loadPyML() {
       setPyLoading(true);
@@ -319,6 +403,11 @@ function PythonMLTab({
         KNN · Decision Tree · Random Forest · Neural Network · K-Means
       </div>
 
+      {/* ======================================================================
+          SARA
+          Classifier comparison table.
+          Shows Accuracy, Precision, Recall and F1-score.
+      ====================================================================== */}
       {pyTable && (
         <div style={pyStyles.section}>
           <h3 style={pyStyles.sectionTitle}>Classifier Comparison</h3>
@@ -361,6 +450,11 @@ function PythonMLTab({
         </div>
       )}
 
+      {/* ======================================================================
+          SARA
+          Python ML chart display.
+          Shows generated charts from backend/public/ml-outputs.
+      ====================================================================== */}
       {pyImages.length > 0 && (
         <div style={pyStyles.section}>
           <h3 style={pyStyles.sectionTitle}>Charts</h3>
@@ -394,6 +488,11 @@ function PythonMLTab({
   );
 }
 
+// ============================================================================
+// SHARED WORK
+// Main page styling.
+// Used by all ML tabs and recommendation UI.
+// ============================================================================
 const styles = {
   page: { minHeight: '100vh', background: '#f6f7fb', padding: '24px 16px' },
   container: { maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '18px' },
@@ -434,6 +533,11 @@ const styles = {
   viewBtn: { marginTop: '6px', display: 'inline-block', color: '#2563eb', fontWeight: '600', fontSize: '14px', textDecoration: 'none' },
 };
 
+// ============================================================================
+// SHARED WORK
+// Python ML result styling.
+// Used for tables, charts, and "not ready" state.
+// ============================================================================
 const pyStyles = {
   wrapper: { display: 'flex', flexDirection: 'column', gap: '18px' },
   section: { background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #e5e7eb' },

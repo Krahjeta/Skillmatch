@@ -15,7 +15,11 @@ const {
 
 const router = express.Router();
 
-// ── Helper: load all jobs with their skills ──────────────────────────────────
+// ============================================================================
+// KRAHJETA
+// Helper function: Loads all jobs from database together with their required skills.
+// This data is used by recommendations, similar jobs, clustering, and job-fit logic.
+// ============================================================================
 async function loadJobs() {
   const [jobs] = await pool.query(
     `SELECT j.id, j.title, j.company, j.description, j.location, j.industry,
@@ -27,13 +31,17 @@ async function loadJobs() {
      GROUP BY j.id`
   );
 
-  return jobs.map(j => ({
+  return jobs.map((j) => ({
     ...j,
     skills: j.skill_names ? j.skill_names.split('|||') : [],
   }));
 }
 
-// ── Helper: load user skills ─────────────────────────────────────────────────
+// ============================================================================
+// ANITA
+// Helper function: Loads the current user's skills and skill levels.
+// This is used for skill gap analysis, recommendations, and career level.
+// ============================================================================
 async function loadUserSkills(userId) {
   const [rows] = await pool.query(
     `SELECT s.name, us.level
@@ -46,7 +54,12 @@ async function loadUserSkills(userId) {
   return rows;
 }
 
-// ── Helper: behavior scores ──────────────────────────────────────────────────
+// ============================================================================
+// KRAHJETA
+// Helper function: Calculates behavior scores from user interactions.
+// view = 1, save = 3, apply = 5.
+// These scores improve the recommendation system over time.
+// ============================================================================
 async function loadUserBehaviorScores(userId) {
   const [rows] = await pool.query(
     `SELECT job_id, interaction_type
@@ -73,7 +86,13 @@ async function loadUserBehaviorScores(userId) {
   return scores;
 }
 
-// ── GET /api/ml/recommendations ──────────────────────────────────────────────
+// ============================================================================
+// KRAHJETA
+// GET /api/ml/recommendations
+// Main recommendation system.
+// Uses TF-IDF, cosine similarity, skill matching, skill level weighting,
+// and user behavior boost.
+// ============================================================================
 router.get('/recommendations', auth, async (req, res) => {
   try {
     const jobs = await loadJobs();
@@ -91,7 +110,7 @@ router.get('/recommendations', auth, async (req, res) => {
       });
     }
 
-    const tokenized = jobs.map(j =>
+    const tokenized = jobs.map((j) =>
       tokenize(`${j.description || ''} ${j.title || ''}`)
     );
 
@@ -108,46 +127,47 @@ router.get('/recommendations', auth, async (req, res) => {
     const scored = jobs.map((job, i) => {
       const sim = cosineSimilarity(userVec, jobVectors[i]);
 
-     const levelWeight = {
-  beginner: 0.5,
-  intermediate: 1,
-  advanced: 1.5,
-  expert: 2,
-};
+      const levelWeight = {
+        beginner: 0.5,
+        intermediate: 1,
+        advanced: 1.5,
+        expert: 2,
+      };
 
-const userSkillMap = new Map();
+      const userSkillMap = new Map();
 
-userSkills.forEach((s) => {
-  userSkillMap.set(
-    s.name.toLowerCase(),
-    levelWeight[String(s.level).toLowerCase()] || 1
-  );
-});
+      userSkills.forEach((s) => {
+        userSkillMap.set(
+          s.name.toLowerCase(),
+          levelWeight[String(s.level).toLowerCase()] || 1
+        );
+      });
 
-let matched = 0;
-let weightedMatch = 0;
+      let matched = 0;
+      let weightedMatch = 0;
 
-job.skills.forEach((skill) => {
-  const weight = userSkillMap.get(skill.toLowerCase());
+      job.skills.forEach((skill) => {
+        const weight = userSkillMap.get(skill.toLowerCase());
 
-  if (weight) {
-    matched += 1;
-    weightedMatch += weight;
-  }
-});
+        if (weight) {
+          matched += 1;
+          weightedMatch += weight;
+        }
+      });
 
-const maxPossible = job.skills.length * 2;
+      const maxPossible = job.skills.length * 2;
 
-const matchPct = maxPossible
-  ? Math.min(100, Math.round((weightedMatch / maxPossible) * 100))
-  : 0;
+      const matchPct = maxPossible
+        ? Math.min(100, Math.round((weightedMatch / maxPossible) * 100))
+        : 0;
+
       const behaviorScoreRaw = behaviorScores.get(job.id) || 0;
       const behaviorBoost = behaviorScoreRaw / maxBehaviorScore;
 
       const finalScore =
-        (sim * 0.55) +
-        ((matchPct / 100) * 0.30) +
-        (behaviorBoost * 0.15);
+        sim * 0.55 +
+        (matchPct / 100) * 0.30 +
+        behaviorBoost * 0.15;
 
       return {
         ...job,
@@ -161,7 +181,7 @@ const matchPct = maxPossible
     });
 
     const top = scored
-      .filter(j => j.mlScore > 0)
+      .filter((j) => j.mlScore > 0)
       .sort((a, b) => b.mlScore - a.mlScore)
       .slice(0, 10);
 
@@ -175,13 +195,18 @@ const matchPct = maxPossible
   }
 });
 
-// ── GET /api/ml/skill-gap ────────────────────────────────────────────────────
+// ============================================================================
+// ANITA
+// GET /api/ml/skill-gap
+// Skill gap analysis.
+// Finds missing skills by comparing user skills with top recommended jobs.
+// ============================================================================
 router.get('/skill-gap', auth, async (req, res) => {
   try {
     const jobs = await loadJobs();
     const userSkills = await loadUserSkills(req.user.id);
 
-    const tokenized = jobs.map(j =>
+    const tokenized = jobs.map((j) =>
       tokenize(`${j.description || ''} ${j.title || ''}`)
     );
 
@@ -213,7 +238,12 @@ router.get('/skill-gap', auth, async (req, res) => {
   }
 });
 
-// ── GET /api/ml/clusters ─────────────────────────────────────────────────────
+// ============================================================================
+// SARA
+// GET /api/ml/clusters
+// K-Means clustering.
+// Groups similar jobs together based on title, description, and skills.
+// ============================================================================
 router.get('/clusters', auth, async (req, res) => {
   try {
     const jobs = await loadJobs();
@@ -222,7 +252,7 @@ router.get('/clusters', auth, async (req, res) => {
       return res.json({ clusters: [] });
     }
 
-    const tokenized = jobs.map(j =>
+    const tokenized = jobs.map((j) =>
       tokenize(`${j.description || ''} ${j.title || ''}`)
     );
 
@@ -252,7 +282,7 @@ router.get('/clusters', auth, async (req, res) => {
       id: parseInt(ci),
       label: labelCluster(jobs, parseInt(ci), assignments),
       size: members.length,
-      sampleJobs: members.slice(0, 5).map(j => ({
+      sampleJobs: members.slice(0, 5).map((j) => ({
         id: j.id,
         title: j.title,
         company: j.company,
@@ -271,7 +301,13 @@ router.get('/clusters', auth, async (req, res) => {
   }
 });
 
-// ── GET /api/ml/collaborative ────────────────────────────────────────────────
+// ============================================================================
+// SARA
+// GET /api/ml/collaborative
+// Collaborative filtering.
+// Recommends jobs based on users with similar behavior.
+// Behavior used: view, save, apply.
+// ============================================================================
 router.get('/collaborative', auth, async (req, res) => {
   try {
     const weights = {
@@ -353,7 +389,7 @@ router.get('/collaborative', auth, async (req, res) => {
         vector,
         similarity: cosineMap(myVector, vector),
       }))
-      .filter(u => u.similarity > 0)
+      .filter((u) => u.similarity > 0)
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, 10);
 
@@ -382,7 +418,6 @@ router.get('/collaborative', auth, async (req, res) => {
     }
 
     const ids = suggestions.map(([jobId]) => jobId);
-
     const placeholders = ids.map(() => '?').join(',');
 
     const [jobRows] = await pool.query(
@@ -395,7 +430,7 @@ router.get('/collaborative', auth, async (req, res) => {
       ids
     );
 
-    const jobs = jobRows.map(job => {
+    const jobs = jobRows.map((job) => {
       const found = suggestions.find(([jobId]) => jobId === job.id);
 
       return {
@@ -416,20 +451,25 @@ router.get('/collaborative', auth, async (req, res) => {
   }
 });
 
-// ── GET /api/ml/similar/:id ──────────────────────────────────────────────────
+// ============================================================================
+// KRAHJETA
+// GET /api/ml/similar/:id
+// Similar jobs endpoint.
+// Finds jobs similar to the selected job using item-based cosine similarity.
+// ============================================================================
 router.get('/similar/:id', auth, async (req, res) => {
   try {
     const jobId = parseInt(req.params.id);
 
     const jobs = await loadJobs();
 
-    const target = jobs.find(j => j.id === jobId);
+    const target = jobs.find((j) => j.id === jobId);
 
     if (!target) {
       return res.status(404).json({ error: 'Job not found' });
     }
 
-    const tokenized = jobs.map(j =>
+    const tokenized = jobs.map((j) =>
       tokenize(`${j.description || ''} ${j.title || ''}`)
     );
 
@@ -439,14 +479,14 @@ router.get('/similar/:id', auth, async (req, res) => {
       buildJobVector(job, tfidfVecs[i])
     );
 
-    const targetIdx = jobs.findIndex(j => j.id === jobId);
+    const targetIdx = jobs.findIndex((j) => j.id === jobId);
 
     const similar = jobs
       .map((job, i) => ({
         ...job,
         similarity: cosineSimilarity(jobVectors[targetIdx], jobVectors[i]),
       }))
-      .filter(j => j.id !== jobId && j.similarity > 0)
+      .filter((j) => j.id !== jobId && j.similarity > 0)
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, 5);
 
@@ -459,7 +499,13 @@ router.get('/similar/:id', auth, async (req, res) => {
     res.status(500).json({ error: 'Similar jobs error' });
   }
 });
+
+// ============================================================================
+// ANITA
 // GET /api/ml/career-level
+// Career level estimation.
+// Estimates if the user is Junior, Mid-Level, or Senior based on skills.
+// ============================================================================
 router.get('/career-level', auth, async (req, res) => {
   try {
     const userSkills = await loadUserSkills(req.user.id);
@@ -472,7 +518,7 @@ router.get('/career-level', auth, async (req, res) => {
       });
     }
 
-    const skillNames = userSkills.map(s => s.name.toLowerCase());
+    const skillNames = userSkills.map((s) => s.name.toLowerCase());
 
     const seniorSkills = [
       'docker',
@@ -492,7 +538,7 @@ router.get('/career-level', auth, async (req, res) => {
       progress = 60;
     }
 
-    const hasSeniorSkill = seniorSkills.some(skill =>
+    const hasSeniorSkill = seniorSkills.some((skill) =>
       skillNames.includes(skill)
     );
 
@@ -502,7 +548,7 @@ router.get('/career-level', auth, async (req, res) => {
     }
 
     const missingSkills = seniorSkills
-      .filter(skill => !skillNames.includes(skill))
+      .filter((skill) => !skillNames.includes(skill))
       .slice(0, 5);
 
     res.json({
@@ -517,8 +563,12 @@ router.get('/career-level', auth, async (req, res) => {
   }
 });
 
-
+// ============================================================================
+// KRAHJETA
 // GET /api/ml/job-fit/:jobId
+// Live job-fit prediction.
+// Calculates how well the user's skills match a specific job.
+// ============================================================================
 router.get('/job-fit/:jobId', auth, async (req, res) => {
   try {
     const jobId = Number(req.params.jobId);
@@ -526,7 +576,7 @@ router.get('/job-fit/:jobId', auth, async (req, res) => {
     const userSkills = await loadUserSkills(req.user.id);
     const jobs = await loadJobs();
 
-    const job = jobs.find(j => j.id === jobId);
+    const job = jobs.find((j) => j.id === jobId);
 
     if (!job) {
       return res.status(404).json({ error: 'Job not found' });
@@ -542,16 +592,16 @@ router.get('/job-fit/:jobId', auth, async (req, res) => {
     }
 
     const userSkillNames = new Set(
-      userSkills.map(s => s.name.toLowerCase())
+      userSkills.map((s) => s.name.toLowerCase())
     );
 
     const jobSkills = job.skills || [];
 
-    const matchedSkills = jobSkills.filter(skill =>
+    const matchedSkills = jobSkills.filter((skill) =>
       userSkillNames.has(skill.toLowerCase())
     );
 
-    const missingSkills = jobSkills.filter(skill =>
+    const missingSkills = jobSkills.filter((skill) =>
       !userSkillNames.has(skill.toLowerCase())
     );
 
@@ -577,6 +627,5 @@ router.get('/job-fit/:jobId', auth, async (req, res) => {
     res.status(500).json({ error: 'Job fit prediction error' });
   }
 });
-
 
 module.exports = router;

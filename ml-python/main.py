@@ -1,18 +1,54 @@
+# ============================================================================
+# SkillPath - Machine Learning Analysis
+# Dataset: LinkedIn Job Postings 2024
+#
+# Team Members:
+# Krahjeta Januzaj
+# Anita
+# Sara
+#
+# Work Distribution:
+#
+# Krahjeta:
+# - Feature Engineering
+# - TF-IDF Vectorization
+# - KNN Classifier
+# - Decision Tree Classifier
+# - Random Forest Classifier
+# - Neural Network Classifier
+# - Performance Evaluation
+#
+# Anita:
+# - Dataset Loading
+# - Data Cleaning
+# - Career Level Label Engineering
+# - Label Encoding
+# - Data Preparation
+# - Train/Test Split
+#
+# Sara:
+# - K-Means Clustering
+# - PCA Dimensionality Reduction
+# - Silhouette Analysis
+# - Cluster Visualization
+# - Cluster Composition Analysis
+#
+# Shared Work:
+# - Testing
+# - Result Analysis
+# - Documentation
+# ============================================================================
+
 """
 SkillPath — Machine Learning Analysis
 Dataset: LinkedIn Job Postings 2024 (Kaggle)
 
-NEW TASK:
-  Task 1: Career Level Classification
-          Predict Junior / Mid-Level / Senior career level from job title,
-          description, industry, location, and required skills.
+Task 1: Career Level Classification
+Predict Junior / Mid-Level / Senior career level from job title,
+description, industry, location, and required skills.
 
-  Task 2: Clustering
-          Group jobs by skill/text profiles.
-
-Why this is better:
-  The dataset may already contain salary and job type, but career level is
-  engineered from text. This makes the ML task more meaningful for SkillPath.
+Task 2: Clustering
+Group jobs by skill/text profiles.
 """
 
 import os
@@ -63,6 +99,14 @@ print("=" * 70)
 print("  SkillPath — Career Level ML Analysis")
 print("=" * 70)
 
+
+# ============================================================================
+# ANITA
+# Dataset Loading and Preprocessing
+# Loads LinkedIn Job Postings and Skills datasets.
+# Cleans columns and prepares data for machine learning.
+# ============================================================================
+
 print("\n[1] Loading dataset...")
 
 DATA_PATHS = [
@@ -105,14 +149,17 @@ df = postings.merge(
 )
 
 title_col = next((c for c in df.columns if "title" in c), None)
+
 industry_col = next(
     (c for c in df.columns if "industry" in c or "search_position" in c or "position" in c),
     None,
 )
+
 location_col = next(
     (c for c in df.columns if "location" in c or "city" in c or "country" in c),
     None,
 )
+
 description_col = next(
     (c for c in df.columns if "description" in c or "summary" in c),
     None,
@@ -128,11 +175,11 @@ if title_col is None:
     raise ValueError("No title column found. Career level prediction needs job titles.")
 
 
-# ---------------------------------------------------------------------------
-# Career level label engineering
-# ---------------------------------------------------------------------------
-# The dataset does not need to contain career level directly.
-# We create labels from job title/description keywords.
+# ============================================================================
+# ANITA
+# Career Level Label Engineering
+# Creates Junior / Mid-Level / Senior labels from job titles and descriptions.
+# ============================================================================
 
 JUNIOR_PATTERNS = [
     r"\bintern\b",
@@ -175,15 +222,15 @@ def engineer_career_level(row):
     desc = str(row.get(description_col, "")).lower() if description_col else ""
     combined = title + " " + desc
 
-    # Title has priority because it is usually more reliable.
     if contains_any(title, JUNIOR_PATTERNS):
         return "Junior"
+
     if contains_any(title, SENIOR_PATTERNS):
         return "Senior"
 
-    # Description is secondary.
     if contains_any(desc, JUNIOR_PATTERNS):
         return "Junior"
+
     if contains_any(desc, SENIOR_PATTERNS):
         return "Senior"
 
@@ -192,16 +239,22 @@ def engineer_career_level(row):
 
 df["career_level"] = df.apply(engineer_career_level, axis=1)
 
-# Remove empty titles and empty skills.
 df = df[df[title_col].notna()].copy()
 df = df[df[s_skill_col].notna()].copy()
 
-# Optional sample for faster training.
 if len(df) > 15000:
     df = df.sample(15000, random_state=42)
 
 print(f"   Rows after cleaning: {len(df):,}")
 print(f"   Career level distribution:\n{df['career_level'].value_counts().to_string()}")
+
+
+# ============================================================================
+# ANITA
+# Data Preparation
+# Creates text features and target labels.
+# Removes data leakage terms and prepares dataset for training.
+# ============================================================================
 
 print("\n[3] Feature engineering...")
 
@@ -209,10 +262,13 @@ text_parts = []
 
 if title_col:
     text_parts.append(df[title_col].fillna(""))
+
 if description_col:
     text_parts.append(df[description_col].fillna(""))
+
 if industry_col:
     text_parts.append(df[industry_col].fillna(""))
+
 if location_col:
     text_parts.append(df[location_col].fillna(""))
 
@@ -223,24 +279,49 @@ df["ml_text"] = text_parts[0]
 for part in text_parts[1:]:
     df["ml_text"] = df["ml_text"] + " " + part
 
-# Remove direct label words from the features.
-# This prevents the model from simply reading "senior" and predicting Senior.
 LEAK_WORDS = [
-    "intern", "internship", "junior", "entry", "trainee", "graduate",
-    "associate", "assistant", "apprentice", "senior", "lead", "principal",
-    "staff", "manager", "director", "head", "chief", "architect", "expert",
-    "consultant", "specialist", "sr"
+    "intern",
+    "internship",
+    "junior",
+    "entry",
+    "trainee",
+    "graduate",
+    "associate",
+    "assistant",
+    "apprentice",
+    "senior",
+    "lead",
+    "principal",
+    "staff",
+    "manager",
+    "director",
+    "head",
+    "chief",
+    "architect",
+    "expert",
+    "consultant",
+    "specialist",
+    "sr",
 ]
 
 
 def remove_leak_words(text):
     text = str(text).lower()
+
     for word in LEAK_WORDS:
         text = re.sub(rf"\b{re.escape(word)}\b", " ", text)
+
     return text
 
 
 df["ml_text_clean"] = df["ml_text"].apply(remove_leak_words)
+
+
+# ============================================================================
+# KRAHJETA
+# TF-IDF Feature Extraction
+# Converts job text into numerical vectors for machine learning models.
+# ============================================================================
 
 tfidf = TfidfVectorizer(
     max_features=300,
@@ -277,6 +358,13 @@ class_names = le_target.classes_
 print(f"   Feature matrix: {X.shape}")
 print(f"   Target classes: {list(class_names)}")
 
+
+# ============================================================================
+# ANITA
+# Train/Test Split and Scaling
+# Splits dataset into training and testing sets and scales numerical features.
+# ============================================================================
+
 X_train, X_test, y_train, y_test = train_test_split(
     X,
     y_enc,
@@ -291,6 +379,12 @@ X_test_sc = scaler.transform(X_test)
 
 print(f"   Train: {len(X_train):,} | Test: {len(X_test):,}")
 
+
+# ============================================================================
+# KRAHJETA
+# Model Evaluation Function
+# Calculates Accuracy, Precision, Recall, F1-Score and Confusion Matrix.
+# ============================================================================
 
 def evaluate(name, model, X_tr, X_te, y_tr, y_te):
     model.fit(X_tr, y_tr)
@@ -318,14 +412,34 @@ def evaluate(name, model, X_tr, X_te, y_tr, y_te):
 
 results = []
 
+
+# ============================================================================
+# KRAHJETA
+# Career Level Classification Models
+# Trains and evaluates:
+# - KNN
+# - Decision Tree
+# - Random Forest
+# - Neural Network
+# ============================================================================
+
 print("\n[4] Training classifiers for Career Level Prediction...")
 
+
+# ============================================================================
+# KRAHJETA
+# K-Nearest Neighbors Classifier
+# Hyperparameter Tuning: k = 3, 5, 7, 11, 15
+# ============================================================================
+
 print("\n   [4a] K-Nearest Neighbors")
+
 best_knn, best_knn_f1 = None, 0
 
 for k in [3, 5, 7, 11, 15]:
     m = KNeighborsClassifier(n_neighbors=k, metric="euclidean")
     m.fit(X_train_sc, y_train)
+
     pred = m.predict(X_test_sc)
     f1 = f1_score(y_test, pred, average="weighted", zero_division=0)
 
@@ -336,15 +450,38 @@ for k in [3, 5, 7, 11, 15]:
         best_knn = m
 
 print(f"   Best KNN: k={best_knn.n_neighbors}")
-results.append(evaluate("KNN (career level)", best_knn, X_train_sc, X_test_sc, y_train, y_test))
 
+results.append(
+    evaluate(
+        "KNN (career level)",
+        best_knn,
+        X_train_sc,
+        X_test_sc,
+        y_train,
+        y_test,
+    )
+)
+
+
+# ============================================================================
+# KRAHJETA
+# Decision Tree Classifier
+# Hyperparameter Tuning: max_depth
+# ============================================================================
 
 print("\n   [4b] Decision Tree")
+
 best_dt, best_dt_f1 = None, 0
 
 for depth in [4, 8, 12, 16, None]:
-    m = DecisionTreeClassifier(max_depth=depth, random_state=42, class_weight="balanced")
+    m = DecisionTreeClassifier(
+        max_depth=depth,
+        random_state=42,
+        class_weight="balanced",
+    )
+
     m.fit(X_train, y_train)
+
     pred = m.predict(X_test)
     f1 = f1_score(y_test, pred, average="weighted", zero_division=0)
 
@@ -355,10 +492,27 @@ for depth in [4, 8, 12, 16, None]:
         best_dt = m
 
 print(f"   Best DT: max_depth={best_dt.max_depth}")
-results.append(evaluate("Decision Tree (career level)", best_dt, X_train, X_test, y_train, y_test))
 
+results.append(
+    evaluate(
+        "Decision Tree (career level)",
+        best_dt,
+        X_train,
+        X_test,
+        y_train,
+        y_test,
+    )
+)
+
+
+# ============================================================================
+# KRAHJETA
+# Random Forest Classifier
+# Hyperparameter Tuning: Number of Trees
+# ============================================================================
 
 print("\n   [4c] Random Forest")
+
 best_rf, best_rf_f1 = None, 0
 
 for n in [50, 100, 200]:
@@ -368,7 +522,9 @@ for n in [50, 100, 200]:
         n_jobs=-1,
         class_weight="balanced",
     )
+
     m.fit(X_train, y_train)
+
     pred = m.predict(X_test)
     f1 = f1_score(y_test, pred, average="weighted", zero_division=0)
 
@@ -379,10 +535,35 @@ for n in [50, 100, 200]:
         best_rf = m
 
 print(f"   Best RF: n_estimators={best_rf.n_estimators}")
-results.append(evaluate("Random Forest (career level)", best_rf, X_train, X_test, y_train, y_test))
 
+results.append(
+    evaluate(
+        "Random Forest (career level)",
+        best_rf,
+        X_train,
+        X_test,
+        y_train,
+        y_test,
+    )
+)
+
+
+# ============================================================================
+# KRAHJETA
+# Neural Network (MLPClassifier)
+#
+# Architecture 1:
+# Input -> 64 -> 32 -> Output
+#
+# Architecture 2:
+# Input -> 128 -> 64 -> 32 -> Output
+#
+# Activation Function:
+# ReLU
+# ============================================================================
 
 print("\n   [4d] Neural Network")
+
 arch1 = (64, 32)
 arch2 = (128, 64, 32)
 
@@ -393,6 +574,7 @@ nn1 = MLPClassifier(
     random_state=42,
     early_stopping=True,
 )
+
 nn2 = MLPClassifier(
     hidden_layer_sizes=arch2,
     activation="relu",
@@ -404,17 +586,44 @@ nn2 = MLPClassifier(
 nn1.fit(X_train_sc, y_train)
 nn2.fit(X_train_sc, y_train)
 
-f1_nn1 = f1_score(y_test, nn1.predict(X_test_sc), average="weighted", zero_division=0)
-f1_nn2 = f1_score(y_test, nn2.predict(X_test_sc), average="weighted", zero_division=0)
+f1_nn1 = f1_score(
+    y_test,
+    nn1.predict(X_test_sc),
+    average="weighted",
+    zero_division=0,
+)
+
+f1_nn2 = f1_score(
+    y_test,
+    nn2.predict(X_test_sc),
+    average="weighted",
+    zero_division=0,
+)
 
 print(f"      Architecture {arch1}: F1={f1_nn1:.3f}")
 print(f"      Architecture {arch2}: F1={f1_nn2:.3f}")
 
 best_nn = nn1 if f1_nn1 >= f1_nn2 else nn2
+
 print(f"   Best NN: {best_nn.hidden_layer_sizes}")
 
-results.append(evaluate("Neural Network (career level)", best_nn, X_train_sc, X_test_sc, y_train, y_test))
+results.append(
+    evaluate(
+        "Neural Network (career level)",
+        best_nn,
+        X_train_sc,
+        X_test_sc,
+        y_train,
+        y_test,
+    )
+)
 
+
+# ============================================================================
+# KRAHJETA
+# Classifier Performance Comparison
+# Generates comparison tables and confusion matrices.
+# ============================================================================
 
 print("\n[5] Results comparison table")
 
@@ -424,11 +633,13 @@ metrics_df = pd.DataFrame([
 ])
 
 metrics_df = metrics_df.sort_values("F1-Score", ascending=False).reset_index(drop=True)
+
 print(metrics_df.to_string(index=False))
 
 metrics_df.to_csv(out("comparison_table.csv"), index=False)
 
 fig, ax = plt.subplots(figsize=(10, 5))
+
 x = np.arange(len(metrics_df))
 width = 0.2
 
@@ -447,7 +658,6 @@ plt.close()
 
 print("   Saved: classifier_comparison.png")
 
-
 fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 axes = axes.flatten()
 
@@ -461,6 +671,7 @@ for i, r in enumerate(results):
         yticklabels=class_names,
         ax=axes[i],
     )
+
     axes[i].set_title(r["Classifier"])
     axes[i].set_xlabel("Predicted")
     axes[i].set_ylabel("Actual")
@@ -488,6 +699,12 @@ print(
 )
 
 
+# ============================================================================
+# SARA
+# K-Means Clustering
+# Groups jobs based on text and skill similarity.
+# ============================================================================
+
 print("\n[6] Clustering — K-Means on Job Skill/Text Profiles")
 
 cluster_X = X_text
@@ -496,8 +713,23 @@ sample_size = min(5000, len(cluster_X))
 cluster_X_sample = cluster_X[:sample_size]
 y_true_slice = y_enc[:sample_size]
 
+
+# ============================================================================
+# SARA
+# PCA Dimensionality Reduction
+# Reduces high-dimensional TF-IDF vectors to 2 dimensions
+# for visualization.
+# ============================================================================
+
 pca = PCA(n_components=2, random_state=42)
 X_pca = pca.fit_transform(cluster_X_sample)
+
+
+# ============================================================================
+# SARA
+# Silhouette Analysis
+# Tests different K values and chooses the best number of clusters.
+# ============================================================================
 
 sil_scores = {}
 
@@ -515,7 +747,9 @@ for k in [3, 4, 5, 6, 8]:
             sample_size=min(2000, sample_size),
             random_state=42,
         )
+
         sil_scores[k] = sil
+
         print(f"      K={k} Silhouette={sil:.4f}")
 
 best_k = max(sil_scores, key=sil_scores.get)
@@ -533,6 +767,7 @@ fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
 for c in range(best_k):
     mask = cluster_labels == c
+
     axes[0].scatter(
         X_pca[mask, 0],
         X_pca[mask, 1],
@@ -562,6 +797,7 @@ colors_y = plt.cm.Set1(np.linspace(0, 1, len(unique_labels)))
 
 for ci, label in enumerate(unique_labels):
     mask = y_true_slice == label
+
     axes[1].scatter(
         X_pca[mask, 0],
         X_pca[mask, 1],
@@ -579,7 +815,6 @@ plt.savefig(out("clustering_pca.png"), dpi=150)
 plt.close()
 
 print("   Saved: clustering_pca.png")
-
 
 fig, ax = plt.subplots(figsize=(7, 4))
 
@@ -603,6 +838,12 @@ plt.close()
 
 print("   Saved: silhouette_curve.png")
 
+
+# ============================================================================
+# SARA
+# Cluster Composition Analysis
+# Compares generated clusters with true career level labels.
+# ============================================================================
 
 cluster_composition = pd.DataFrame({
     "cluster": cluster_labels,
@@ -629,6 +870,12 @@ plt.close()
 print("   Saved: cluster_composition_heatmap.png")
 
 
+# ============================================================================
+# SHARED WORK
+# Final Summary
+# Prints final model and clustering results.
+# ============================================================================
+
 print("\n" + "=" * 70)
 print(
     f"  Best Classifier : {best_result['Classifier']} "
@@ -637,4 +884,5 @@ print(
 print(f"  Best K          : {best_k} | Silhouette: {sil_scores[best_k]:.4f}")
 print(f"  Output folder   : {OUTPUT_DIR}")
 print("=" * 70)
+
 print("\nDone! Restart backend and open 'ML Recommendations' → 'Python ML Analysis' tab.")
